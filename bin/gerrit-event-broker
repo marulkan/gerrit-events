@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+
+import asyncio
+import argparse
+
+from gerritevents.launcher import CliLauncher
+from gerritevents.broker import GerritEventBroker
+from gerritevents import Log
+
+log = Log(__name__)
+
+DESC = """
+Connects to a gerrit servers SSH port and listens to all events.
+"""
+
+
+class GerritEventBrokerLauncher(CliLauncher):
+    def setup_parser(self):
+        super().setup_parser(description=DESC)
+
+    def run(self):
+        gerrit = GerritEventBroker(
+            server=self.config['broker']['gerritmaster'],
+            events=self.config['broker']['events'],
+            zmq_port=self.config['broker']['port'])
+
+        tasks = [
+            asyncio.ensure_future(gerrit.ssh_connection()),
+            asyncio.ensure_future(gerrit.message_handler()),
+            asyncio.ensure_future(gerrit.zmq_publisher()),
+            asyncio.ensure_future(gerrit.zmq_keepalive())
+        ]
+
+        loop = asyncio.get_event_loop()
+        try:
+            # We want the application to die when we no longer receive a heartbeat
+            # This is so that systemd can restart it for us
+            loop.run_until_complete(
+                asyncio.wait(tasks, return_when='FIRST_COMPLETED'))
+        finally:
+            loop.close()
+
+
+if __name__ == '__main__':
+    gerritlauncher = GerritEventBrokerLauncher()
+    gerritlauncher.start()

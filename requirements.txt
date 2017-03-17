@@ -1,0 +1,4 @@
+aiozmq>=0.7.1
+asyncssh>=1.9.0
+PyYAML>=3.12
+pyzmq>=16.0.2

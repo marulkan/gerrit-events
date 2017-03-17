@@ -1,0 +1,16 @@
+main:
+  git: '/<path-to-git-binary>/git'
+client:
+  brokers:
+    - 'tcp://<broker-ip>:<broker-port>'
+  repos:
+    <repo1>:
+      path: '/<path>/<bare-repo.git>'
+      origin: 'ssh://<user@<host>:29418/<repo>'
+      refs: '+refs/*:refs/*'
+broker:
+  gerritmaster: '<hostname>'
+  port: '<port-number>'
+  events:
+    - 'ref-replication-done'
+    # - 'ref-replication'

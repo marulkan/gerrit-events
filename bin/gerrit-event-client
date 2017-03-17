@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+
+import asyncio
+import zmq
+import zmq.asyncio
+import argparse
+
+from gerritevents.launcher import CliLauncher
+from gerritevents.client import GerritEventSubscriber
+from gerritevents import Log
+
+log = Log(__name__)
+
+DESC = """
+Listener for gerrit-event-broker which in turns listen to events from gerrit.
+"""
+
+
+class GerritEventClientLauncher(CliLauncher):
+    def setup_parser(self):
+        super().setup_parser(description=DESC)
+
+    def run(self):
+        # Starting event loop, running with ZMQEventLoop since zmq library requires
+        # it and running with aiozmq as a subscriber is too troublesome with too
+        # little benefit.
+        event_loop = zmq.asyncio.ZMQEventLoop()
+        asyncio.set_event_loop(event_loop)
+        loop = asyncio.get_event_loop()
+
+        subscriber = GerritEventSubscriber(
+            loop,
+            git_binary=self.config['main']['git'],
+            brokers=self.config['client']['brokers'],
+            repos=self.config['client']['repos'])
+
+        tasks = [
+            asyncio.ensure_future(subscriber.zmq_subscriber()),
+            asyncio.ensure_future(subscriber.dispatcher()),
+            asyncio.ensure_future(subscriber.heartbeat())
+        ]
+
+        try:
+            # We want the application to die when we no longer receive a heartbeat
+            # This is so that systemd can restart it for us
+            loop.run_until_complete(
+                asyncio.wait(tasks, return_when='FIRST_COMPLETED'))
+        finally:
+            loop.close()
+
+
+if __name__ == '__main__':
+    gerritlauncher = GerritEventClientLauncher()
+    gerritlauncher.start()
